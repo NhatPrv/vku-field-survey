@@ -6,23 +6,32 @@ import {
   Sun,
   Moon,
   ClipboardList,
-  Server,
-  Layers,
+  Lock,
+  ArrowLeft,
+  KeyRound,
 } from "lucide-react";
 import FormWizard from "./components/FormWizard";
 import OfflineQueueModal from "./components/OfflineQueueModal";
-import AdminDashboard from "./components/AdminDashboard";
 import ServerAdminPage from "./pages/ServerAdminPage";
 import { useNetworkStatus } from "./hooks/useNetworkStatus";
 import { getAllQueuedSurveys, enqueueSurvey } from "./services/db";
 import { syncPendingSurveys } from "./services/syncService";
 import type { SurveyFormData, OfflineRecord } from "./types";
 
-type NavigationTab = "survey" | "local_admin" | "server_admin";
+// Mật khẩu quản trị viên riêng biệt (Chỉ bạn biết)
+const ADMIN_SECRET_PIN = "vku@admin2026";
 
 export default function App() {
   const [dark, setDark] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<NavigationTab>("survey");
+  const [isAdminMode, setIsAdminMode] = useState<boolean>(() => {
+    return window.location.pathname.startsWith("/admin") || window.location.hash === "#admin";
+  });
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return sessionStorage.getItem("vku_admin_auth") === "true";
+  });
+  const [pinInput, setPinInput] = useState<string>("");
+  const [authError, setAuthError] = useState<string | null>(null);
+
   const { isOnline } = useNetworkStatus();
   const [records, setRecords] = useState<OfflineRecord[]>([]);
   const [showQueue, setShowQueue] = useState<boolean>(false);
@@ -57,7 +66,22 @@ export default function App() {
     document.documentElement.classList.toggle("dark", dark);
   }, [dark]);
 
-  // 3. Xử lý đồng bộ hàng đợi lên Server
+  // 3. Lắng nghe thay đổi URL nếu truy cập trực tiếp /admin hoặc #admin
+  useEffect(() => {
+    const handleLocationChange = () => {
+      if (window.location.pathname.startsWith("/admin") || window.location.hash === "#admin") {
+        setIsAdminMode(true);
+      }
+    };
+    window.addEventListener("popstate", handleLocationChange);
+    window.addEventListener("hashchange", handleLocationChange);
+    return () => {
+      window.removeEventListener("popstate", handleLocationChange);
+      window.removeEventListener("hashchange", handleLocationChange);
+    };
+  }, []);
+
+  // 4. Xử lý đồng bộ hàng đợi lên Server
   const handleSync = useCallback(async () => {
     if (!isOnline || syncing) return;
     setSyncing(true);
@@ -67,7 +91,7 @@ export default function App() {
       if (result.successCount > 0) {
         showToast(`✓ Đã đồng bộ ${result.successCount} phiếu lên máy chủ trung tâm`);
       } else if (result.stoppedEarly) {
-        showToast(`⚠️ Không thể kết nối Backend Server (Port 5000) — Dữ liệu được bảo toàn`);
+        showToast(`⚠️ Không thể kết nối Backend Server — Dữ liệu được bảo toàn`);
       } else if (result.failedCount > 0) {
         showToast(`⚠️ Có ${result.failedCount} phiếu đồng bộ thất bại`);
       }
@@ -79,7 +103,7 @@ export default function App() {
     }
   }, [isOnline, syncing, refreshRecordsFromDb]);
 
-  // 4. Tự động kích hoạt đồng bộ khi vừa khôi phục kết nối mạng
+  // 5. Tự động kích hoạt đồng bộ khi vừa khôi phục kết nối mạng
   useEffect(() => {
     if (!prevOnlineRef.current && isOnline) {
       showToast("🌐 Đã có mạng trở lại — Tự động đồng bộ lên Server...");
@@ -88,7 +112,7 @@ export default function App() {
     prevOnlineRef.current = isOnline;
   }, [isOnline, handleSync]);
 
-  // 5. Tiếp nhận submit từ FormWizard
+  // 6. Tiếp nhận submit từ FormWizard (Người dùng thông thường)
   async function handleSubmit(data: SurveyFormData) {
     try {
       const initialStatus = isOnline ? "SYNCED" : "PENDING_SYNC";
@@ -96,7 +120,6 @@ export default function App() {
       await refreshRecordsFromDb();
 
       if (isOnline) {
-        // Tự động đẩy ngay lên server backend nếu đang online
         handleSync();
         showToast("✓ Phiếu đã gửi & đồng bộ lên máy chủ");
       } else {
@@ -108,6 +131,25 @@ export default function App() {
     }
   }
 
+  // 7. Xác thực mật khẩu Admin
+  function handleLoginAdmin(e: React.FormEvent) {
+    e.preventDefault();
+    if (pinInput.trim() === ADMIN_SECRET_PIN) {
+      setIsAuthenticated(true);
+      sessionStorage.setItem("vku_admin_auth", "true");
+      setAuthError(null);
+    } else {
+      setAuthError("Mật khẩu Quản trị không chính xác! Vui lòng thử lại.");
+    }
+  }
+
+  function handleLogoutAdmin() {
+    setIsAuthenticated(false);
+    sessionStorage.removeItem("vku_admin_auth");
+    setIsAdminMode(false);
+    window.location.hash = "";
+  }
+
   function showToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 3200);
@@ -117,12 +159,12 @@ export default function App() {
 
   return (
     <div
-      className="flex flex-col h-full w-full max-w-6xl mx-auto md:my-3 md:h-[calc(100vh-1.5rem)] md:rounded-3xl md:border overflow-hidden relative shadow-2xl transition-all"
+      className="flex flex-col h-full w-full max-w-5xl mx-auto md:my-3 md:h-[calc(100vh-1.5rem)] md:rounded-3xl md:border overflow-hidden relative shadow-2xl transition-all"
       style={{ background: "var(--bg)", borderColor: "var(--border)" }}
     >
       {/* Top Header Bar */}
       <header
-        className="flex items-center justify-between px-3 sm:px-6 py-3 shrink-0 border-b z-10"
+        className="flex items-center justify-between px-4 sm:px-6 py-3 shrink-0 border-b z-10"
         style={{ background: "var(--surface)", borderColor: "var(--border)" }}
       >
         {/* Logo & Title */}
@@ -138,69 +180,23 @@ export default function App() {
               VKU Field Survey
             </span>
             <span className="text-[10px] sm:text-xs font-mono" style={{ color: "var(--text-muted)" }}>
-              Hệ thống Kiểm định Đa Nền tảng
+              {isAdminMode ? "Cổng Quản trị Trung tâm (Admin)" : "Kiểm định cơ sở vật chất (Offline-First)"}
             </span>
           </div>
         </div>
 
-        {/* Navigation Tabs Switcher (3 Chế độ) */}
-        <div
-          className="flex items-center p-1 rounded-2xl border text-xs font-semibold"
-          style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}
-        >
-          {/* Tab 1: Khảo sát hiện trường */}
+        {/* Nút thoát Admin (nếu đang ở trang Admin) */}
+        {isAdminMode && (
           <button
             type="button"
-            onClick={() => setActiveTab("survey")}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer"
-            style={{
-              background: activeTab === "survey" ? "var(--primary)" : "transparent",
-              color: activeTab === "survey" ? "var(--primary-fg)" : "var(--text-secondary)",
-              boxShadow: activeTab === "survey" ? "0 2px 8px rgba(2,132,199,0.3)" : "none",
-            }}
+            onClick={handleLogoutAdmin}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium text-slate-500 hover:text-slate-800 dark:hover:text-white cursor-pointer"
+            style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}
           >
-            <ClipboardList size={14} />
-            <span className="hidden sm:inline">Khảo sát</span>
+            <ArrowLeft size={14} />
+            <span>Về trang Khảo sát</span>
           </button>
-
-          {/* Tab 2: Quản lý Offline DB */}
-          <button
-            type="button"
-            onClick={() => setActiveTab("local_admin")}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer"
-            style={{
-              background: activeTab === "local_admin" ? "var(--primary)" : "transparent",
-              color: activeTab === "local_admin" ? "var(--primary-fg)" : "var(--text-secondary)",
-              boxShadow: activeTab === "local_admin" ? "0 2px 8px rgba(2,132,199,0.3)" : "none",
-            }}
-          >
-            <Layers size={14} />
-            <span className="hidden sm:inline">Hàng đợi Máy</span>
-            {pendingCount > 0 && (
-              <span
-                className="w-4 h-4 rounded-full text-[10px] font-mono flex items-center justify-center text-white"
-                style={{ background: "#f59e0b" }}
-              >
-                {pendingCount}
-              </span>
-            )}
-          </button>
-
-          {/* Tab 3: Server Admin Portal */}
-          <button
-            type="button"
-            onClick={() => setActiveTab("server_admin")}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer"
-            style={{
-              background: activeTab === "server_admin" ? "var(--primary)" : "transparent",
-              color: activeTab === "server_admin" ? "var(--primary-fg)" : "var(--text-secondary)",
-              boxShadow: activeTab === "server_admin" ? "0 2px 8px rgba(2,132,199,0.3)" : "none",
-            }}
-          >
-            <Server size={14} />
-            <span className="hidden sm:inline">Máy chủ Server</span>
-          </button>
-        </div>
+        )}
 
         {/* Network Badge & Dark/Light Toggle */}
         <div className="flex items-center gap-2">
@@ -212,7 +208,7 @@ export default function App() {
             }}
           >
             {isOnline ? <Wifi size={13} /> : <WifiOff size={13} />}
-            <span className="hidden md:inline">{isOnline ? "Online" : "Offline"}</span>
+            <span className="hidden sm:inline">{isOnline ? "Online" : "Offline"}</span>
           </div>
 
           <button
@@ -228,22 +224,68 @@ export default function App() {
       </header>
 
       {/* Main Content Area */}
-      {activeTab === "survey" && <FormWizard onSubmit={handleSubmit} />}
+      {!isAdminMode ? (
+        // GIAO DIỆN USER THU THẬP HIỆN TRƯỜNG (HOÀN TOÀN KHÔNG CÓ NÚT ADMIN)
+        <FormWizard onSubmit={handleSubmit} />
+      ) : !isAuthenticated ? (
+        // MÀN HÌNH KHÓA BẢO MẬT ADMIN (ADMIN SECURITY GATE)
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div
+            className="max-w-sm w-full p-6 sm:p-8 rounded-3xl border shadow-xl flex flex-col items-center text-center gap-5"
+            style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+          >
+            <div className="w-14 h-14 rounded-2xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-600">
+              <Lock size={26} />
+            </div>
 
-      {activeTab === "local_admin" && (
-        <AdminDashboard
-          records={records}
-          onRefresh={refreshRecordsFromDb}
-          onSync={handleSync}
-          isOnline={isOnline}
-          syncing={syncing}
-        />
+            <div className="flex flex-col gap-1">
+              <h2 className="text-lg font-bold" style={{ color: "var(--text-primary)" }}>
+                Xác thực Quyền Quản trị
+              </h2>
+              <p className="text-xs font-mono text-slate-400">
+                Khu vực giới hạn chỉ dành riêng cho Admin hệ thống
+              </p>
+            </div>
+
+            <form onSubmit={handleLoginAdmin} className="w-full flex flex-col gap-3">
+              <div className="relative">
+                <KeyRound size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="password"
+                  value={pinInput}
+                  onChange={(e) => setPinInput(e.target.value)}
+                  placeholder="Nhập Mật mã Quản trị…"
+                  className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border outline-none font-mono transition-all focus:ring-2"
+                  style={{
+                    background: "var(--surface-2)",
+                    borderColor: "var(--border)",
+                    color: "var(--text-primary)",
+                  }}
+                  autoFocus
+                />
+              </div>
+
+              {authError && (
+                <span className="text-xs text-rose-500 font-medium">{authError}</span>
+              )}
+
+              <button
+                type="submit"
+                className="w-full py-3 rounded-xl text-white text-xs font-semibold shadow-md shadow-sky-600/30 transition-all active:scale-95 cursor-pointer mt-1"
+                style={{ background: "var(--primary)" }}
+              >
+                Mở khóa Bảng Quản trị
+              </button>
+            </form>
+          </div>
+        </div>
+      ) : (
+        // DASHBOARD QUẢN TRỊ TRUNG TÂM (CHỈ ADMIN THẤY)
+        <ServerAdminPage />
       )}
 
-      {activeTab === "server_admin" && <ServerAdminPage />}
-
-      {/* Floating Sync Bar for Survey tab when records are pending */}
-      {activeTab === "survey" && pendingCount > 0 && (
+      {/* Thanh nổi dưới đáy khi User có phiếu chờ đồng bộ */}
+      {!isAdminMode && pendingCount > 0 && (
         <div
           className="absolute bottom-0 left-0 right-0 px-4 pb-5 pt-3 flex items-center justify-between z-20 pointer-events-none"
           style={{ background: "linear-gradient(to top, var(--bg) 75%, transparent)" }}
@@ -305,7 +347,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Modal Hàng đợi Offline */}
+      {/* Modal Hàng đợi Offline cá nhân của người dùng */}
       {showQueue && (
         <OfflineQueueModal
           records={records}
