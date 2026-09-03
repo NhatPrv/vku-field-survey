@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VKU Field Survey — Central Server Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+  <!-- Top Navigation Bar -->
+  <header class="bg-slate-900 border-b border-slate-800 px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-lg">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-sky-600 flex items-center justify-center text-white shadow-md shadow-sky-600/30 font-bold text-lg">
+        VKU
+      </div>
+      <div>
+        <h1 class="text-base sm:text-lg font-bold tracking-tight text-white flex items-center gap-2">
+          Hệ thống Kiểm định CSVC — Central Server
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">PORT 5000</span>
+        </h1>
+        <p class="text-xs font-mono text-slate-400">Node.js Express RESTful Server Dashboard</p>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/80 border border-slate-700/60 text-xs font-mono">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span class="text-slate-300">Server Live</span>
+      </div>
+      <button onclick="fetchData()" class="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+        Làm mới
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-6">
+    <!-- Metric Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
+        <span class="text-xs font-mono text-slate-400 uppercase tracking-wider">Tổng số phiếu tiếp nhận</span>
+        <div class="mt-2 flex items-baseline justify-between">
+          <span id="metric-total" class="text-3xl font-bold font-mono text-white">0</span>
+          <span class="text-xs font-mono text-sky-400">Bản ghi</span>
+        </div>
+        <p class="text-[11px] font-mono text-slate-500 mt-1">Lưu trữ máy chủ tập trung</p>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
+        <span class="text-xs font-mono text-emerald-400 uppercase tracking-wider">Trạng thái đồng bộ</span>
+        <div class="mt-2 flex items-baseline justify-between">
+          <span id="metric-synced" class="text-3xl font-bold font-mono text-emerald-400">0</span>
+          <span class="text-xs font-mono text-emerald-500">100% OK</span>
+        </div>
+        <p class="text-[11px] font-mono text-slate-500 mt-1">Đã qua kiểm định API</p>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
+        <span class="text-xs font-mono text-rose-400 uppercase tracking-wider">Sự cố nghiêm trọng (≤ 2★)</span>
+        <div class="mt-2 flex items-baseline justify-between">
+          <span id="metric-critical" class="text-3xl font-bold font-mono text-rose-500">0</span>
+          <span id="metric-critical-rate" class="text-xs font-mono text-rose-400">0%</span>
+        </div>
+        <p class="text-[11px] font-mono text-slate-500 mt-1">Cần thanh tra & xử lý gấp</p>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
+        <span class="text-xs font-mono text-slate-400 uppercase tracking-wider">Chu kỳ đồng bộ ngầm</span>
+        <div class="mt-2 flex items-baseline justify-between">
+          <span class="text-3xl font-bold font-mono text-sky-400">10s</span>
+          <span class="text-xs font-mono text-slate-400">Polling</span>
+        </div>
+        <p class="text-[11px] font-mono text-slate-500 mt-1">Tự động cập nhật tức thì</p>
+      </div>
+    </div>
+
+    <!-- Filter & Search Bar -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row gap-3 items-center justify-between">
+      <div class="relative w-full sm:w-80">
+        <input id="search-input" oninput="renderTable()" type="text" placeholder="Tìm theo phòng, tòa nhà, sự cố…" class="w-full pl-9 pr-4 py-2 text-xs font-mono bg-slate-950 border border-slate-800 rounded-xl text-white outline-none focus:border-sky-500">
+        <svg class="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+      </div>
+
+      <div class="flex items-center gap-3 w-full sm:w-auto">
+        <select id="filter-building" onchange="renderTable()" class="px-3 py-2 text-xs font-mono bg-slate-950 border border-slate-800 rounded-xl text-slate-300 outline-none cursor-pointer">
+          <option value="ALL">Tất cả Tòa nhà</option>
+          <option value="Dãy A">Dãy A</option>
+          <option value="Dãy B">Dãy B</option>
+          <option value="Dãy C">Dãy C</option>
+          <option value="Tòa V">Tòa V</option>
+          <option value="KTX">Ký túc xá</option>
+        </select>
+
+        <select id="filter-category" onchange="renderTable()" class="px-3 py-2 text-xs font-mono bg-slate-950 border border-slate-800 rounded-xl text-slate-300 outline-none cursor-pointer">
+          <option value="ALL">Tất cả Thiết bị</option>
+          <option value="Hardware">🖥️ Máy tính</option>
+          <option value="Projector">📽️ Máy chiếu</option>
+          <option value="AC">❄️ Điều hòa</option>
+          <option value="Electrical">⚡ Điện</option>
+          <option value="Furniture">🪑 Nội thất</option>
+        </select>
+
+        <button onclick="exportJson()" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-mono text-slate-300 cursor-pointer transition-all">
+          Xuất JSON
+        </button>
+      </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm flex flex-col">
+      <div class="px-5 py-3.5 border-b border-slate-800 flex items-center justify-between">
+        <h2 class="text-sm font-bold text-white flex items-center gap-2">
+          Bảng Tiếp Nhận Khảo Sát Ngoại Tuyến
+          <span id="badge-count" class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-sky-500/20 text-sky-400">0</span>
+        </h2>
+        <span class="text-xs font-mono text-slate-500">Node.js Memory Store</span>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr class="border-b border-slate-800 font-mono text-slate-400 uppercase text-[11px] bg-slate-950/60">
+              <th class="py-3 px-4">Thời gian nhận</th>
+              <th class="py-3 px-4">Vị trí</th>
+              <th class="py-3 px-4">Loại thiết bị</th>
+              <th class="py-3 px-4">Đánh giá</th>
+              <th class="py-3 px-4">Ghi chú sự cố</th>
+              <th class="py-3 px-4 text-center">Ảnh hiện trường</th>
+              <th class="py-3 px-4 text-right">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody id="survey-table-body" class="divide-y divide-slate-800/60">
+            <tr>
+              <td colspan="7" class="py-12 text-center text-slate-500 font-mono">Đang tải dữ liệu từ máy chủ...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- Photo Modal -->
+  <div id="photo-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden items-center justify-center p-4" onclick="closePhotoModal()">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl" onclick="event.stopPropagation()">
+      <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+        <span class="text-sm font-bold text-white">Ảnh hiện trường thực tế từ thiết bị kiểm định</span>
+        <button onclick="closePhotoModal()" class="text-slate-400 hover:text-white cursor-pointer p-1">✕</button>
+      </div>
+      <div class="p-4 flex items-center justify-center bg-black/50 max-h-[70vh]">
+        <img id="modal-img" src="" alt="Ảnh hiện trường" class="max-h-[65vh] w-auto object-contain rounded-xl">
+      </div>
+    </div>
+  </div>
+
+  <footer class="bg-slate-900/60 border-t border-slate-800/60 py-3 text-center text-xs font-mono text-slate-500">
+    VKU Field Survey Server Engine © 2026 — Khoa CNTT & TT, Trường Đại học CNTT & TT Việt - Hàn (VKU)
+  </footer>
+
+  <script>
+    let allSurveys = [];
+    const CATEGORY_MAP = {
+      Hardware: "🖥️ Máy tính",
+      Projector: "📽️ Máy chiếu",
+      AC: "❄️ Điều hòa",
+      Electrical: "⚡ Điện",
+      Furniture: "🪑 Nội thất"
+    };
+
+    async function fetchData() {
+      try {
+        const res = await fetch('/api/admin/surveys');
+        if (res.ok) {
+          const data = await res.json();
+          allSurveys = data.surveys || [];
+          updateMetrics();
+          renderTable();
+        }
+      } catch (err) {
+        console.error("Lỗi nạp dữ liệu server:", err);
+      }
+    }
+
+    function updateMetrics() {
+      const total = allSurveys.length;
+      const critical = allSurveys.filter(s => s.payload && s.payload.rating <= 2).length;
+      const criticalRate = total > 0 ? Math.round((critical / total) * 100) : 0;
+
+      document.getElementById('metric-total').innerText = total;
+      document.getElementById('metric-synced').innerText = total;
+      document.getElementById('metric-critical').innerText = critical;
+      document.getElementById('metric-critical-rate').innerText = criticalRate + '%';
+      document.getElementById('badge-count').innerText = total;
+    }
+
+    function renderTable() {
+      const query = document.getElementById('search-input').value.toLowerCase();
+      const buildingFilter = document.getElementById('filter-building').value;
+      const categoryFilter = document.getElementById('filter-category').value;
+
+      const filtered = allSurveys.filter(s => {
+        if (!s.payload) return false;
+        const matchSearch = !query ||
+          (s.payload.room || '').toLowerCase().includes(query) ||
+          (s.payload.building || '').toLowerCase().includes(query) ||
+          (s.payload.notes || '').toLowerCase().includes(query);
+
+        const matchBuilding = buildingFilter === 'ALL' || s.payload.building === buildingFilter;
+        const matchCategory = categoryFilter === 'ALL' || s.payload.category === categoryFilter;
+        return matchSearch && matchBuilding && matchCategory;
+      });
+
+      const tbody = document.getElementById('survey-table-body');
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="py-12 text-center text-slate-500 font-mono">Chưa có phiếu khảo sát nào phù hợp điều kiện lọc.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(item => {
+        const p = item.payload;
+        const dateStr = item.serverReceivedAt || item.createdAt || new Date().toISOString();
+        const formattedDate = new Date(dateStr).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
+        const stars = '★'.repeat(p.rating || 0) + '☆'.repeat(Math.max(0, 5 - (p.rating || 0)));
+
+        return `
+          <tr class="hover:bg-slate-800/30 transition-colors">
+            <td class="py-3 px-4 font-mono text-slate-400 whitespace-nowrap">${formattedDate}</td>
+            <td class="py-3 px-4 font-semibold text-slate-200 whitespace-nowrap">${p.building} · ${p.floor ? 'T' + p.floor : ''} · ${p.room}</td>
+            <td class="py-3 px-4 whitespace-nowrap text-slate-300">${CATEGORY_MAP[p.category] || p.category || '—'}</td>
+            <td class="py-3 px-4 font-mono text-amber-400 whitespace-nowrap font-bold">${stars}</td>
+            <td class="py-3 px-4 text-slate-300 max-w-xs truncate" title="${p.notes || ''}">${p.notes || '—'}</td>
+            <td class="py-3 px-4 text-center whitespace-nowrap">
+              ${p.photoUrl ? `<button onclick="openPhotoModal('${p.photoUrl.replace(/'/g, "\\'")}')" class="w-8 h-8 rounded-lg overflow-hidden border border-slate-700 inline-block hover:border-sky-500 transition-all cursor-pointer"><img src="${p.photoUrl}" class="w-full h-full object-cover"></button>` : `<span class="text-slate-600 font-mono">—</span>`}
+            </td>
+            <td class="py-3 px-4 text-right whitespace-nowrap">
+              <button onclick="deleteRecord('${item.id}')" class="px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-[11px] font-mono cursor-pointer transition-all">Xóa</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function openPhotoModal(url) {
+      document.getElementById('modal-img').src = url;
+      document.getElementById('photo-modal').classList.remove('hidden');
+      document.getElementById('photo-modal').classList.add('flex');
+    }
+
+    function closePhotoModal() {
+      document.getElementById('photo-modal').classList.remove('flex');
+      document.getElementById('photo-modal').classList.add('hidden');
+    }
+
+    async function deleteRecord(id) {
+      if (!confirm(`Xác nhận xóa bản ghi [${id}] trên máy chủ?`)) return;
+      try {
+        const res = await fetch(`/api/admin/surveys/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          fetchData();
+        }
+      } catch (err) {
+        alert("Lỗi khi xóa bản ghi: " + err);
+      }
+    }
+
+    function exportJson() {
+      const blob = new Blob([JSON.stringify(allSurveys, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `vku-server-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+    }
+
+    fetchData();
+    setInterval(fetchData, 10000);
+  </script>
+</body>
+</html>

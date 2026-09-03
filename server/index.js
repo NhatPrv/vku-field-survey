@@ -1,5 +1,10 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -8,6 +13,9 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Phục vụ giao diện Web GUI độc lập tại http://localhost:5000/
+app.use(express.static(path.join(__dirname, 'public')));
 
 // In-memory data store cho danh sách các phiếu khảo sát nhận được từ các thiết bị ngoại tuyến
 let surveysStore = [];
