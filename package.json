@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "server": "node server/index.js"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",
@@ -15,6 +16,8 @@
     "@capacitor/core": "^8.5.1",
     "@capacitor/network": "^8.0.1",
     "@tailwindcss/vite": "^4.3.3",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
     "idb": "^8.0.3",
     "lucide-react": "^1.39.0",
     "react": "^19.2.8",
@@ -26,6 +29,8 @@
   "devDependencies": {
     "@capacitor/cli": "^8.5.1",
     "@eslint/js": "^10.0.1",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",

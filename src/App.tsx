@@ -6,23 +6,27 @@ import {
   Sun,
   Moon,
   ClipboardList,
-  LayoutDashboard,
+  Server,
+  Layers,
 } from "lucide-react";
 import FormWizard from "./components/FormWizard";
 import OfflineQueueModal from "./components/OfflineQueueModal";
 import AdminDashboard from "./components/AdminDashboard";
+import ServerAdminPage from "./pages/ServerAdminPage";
 import { useNetworkStatus } from "./hooks/useNetworkStatus";
-import { getAllSurveys, addToQueue } from "./services/db";
-import { processSyncQueue } from "./services/syncQueue";
+import { getAllQueuedSurveys, enqueueSurvey } from "./services/db";
+import { syncPendingSurveys } from "./services/syncService";
 import type { SurveyFormData, OfflineRecord } from "./types";
 
+type NavigationTab = "survey" | "local_admin" | "server_admin";
+
 export default function App() {
-  const [dark, setDark] = useState(false);
-  const [activeTab, setActiveTab] = useState<"survey" | "admin">("survey");
+  const [dark, setDark] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<NavigationTab>("survey");
   const { isOnline } = useNetworkStatus();
   const [records, setRecords] = useState<OfflineRecord[]>([]);
-  const [showQueue, setShowQueue] = useState(false);
-  const [syncing, setSyncing] = useState(false);
+  const [showQueue, setShowQueue] = useState<boolean>(false);
+  const [syncing, setSyncing] = useState<boolean>(false);
   const [toast, setToast] = useState<string | null>(null);
 
   const prevOnlineRef = useRef(isOnline);
@@ -30,12 +34,13 @@ export default function App() {
   // 1. Tải danh sách bản ghi khảo sát từ IndexedDB
   const refreshRecordsFromDb = useCallback(async () => {
     try {
-      const dbSurveys = await getAllSurveys();
+      const dbSurveys = await getAllQueuedSurveys();
       const mappedRecords: OfflineRecord[] = dbSurveys.map((item) => ({
         id: item.id,
         data: item.payload,
         status: item.status,
         timestamp: item.createdAt,
+        serverReceivedAt: item.serverReceivedAt,
       }));
       setRecords(mappedRecords);
     } catch (err) {
@@ -52,15 +57,17 @@ export default function App() {
     document.documentElement.classList.toggle("dark", dark);
   }, [dark]);
 
-  // 3. Xử lý đồng bộ hàng đợi
+  // 3. Xử lý đồng bộ hàng đợi lên Server
   const handleSync = useCallback(async () => {
     if (!isOnline || syncing) return;
     setSyncing(true);
     try {
-      const result = await processSyncQueue();
+      const result = await syncPendingSurveys();
       await refreshRecordsFromDb();
       if (result.successCount > 0) {
-        showToast(`✓ Đã đồng bộ ${result.successCount} phiếu lên máy chủ`);
+        showToast(`✓ Đã đồng bộ ${result.successCount} phiếu lên máy chủ trung tâm`);
+      } else if (result.stoppedEarly) {
+        showToast(`⚠️ Không thể kết nối Backend Server (Port 5000) — Dữ liệu được bảo toàn`);
       } else if (result.failedCount > 0) {
         showToast(`⚠️ Có ${result.failedCount} phiếu đồng bộ thất bại`);
       }
@@ -75,7 +82,7 @@ export default function App() {
   // 4. Tự động kích hoạt đồng bộ khi vừa khôi phục kết nối mạng
   useEffect(() => {
     if (!prevOnlineRef.current && isOnline) {
-      showToast("🌐 Đã có mạng trở lại — Tự động đồng bộ...");
+      showToast("🌐 Đã có mạng trở lại — Tự động đồng bộ lên Server...");
       handleSync();
     }
     prevOnlineRef.current = isOnline;
@@ -85,11 +92,13 @@ export default function App() {
   async function handleSubmit(data: SurveyFormData) {
     try {
       const initialStatus = isOnline ? "SYNCED" : "PENDING_SYNC";
-      await addToQueue(data, initialStatus);
+      await enqueueSurvey(data, initialStatus);
       await refreshRecordsFromDb();
 
       if (isOnline) {
-        showToast("✓ Phiếu đã gửi & đồng bộ thành công");
+        // Tự động đẩy ngay lên server backend nếu đang online
+        handleSync();
+        showToast("✓ Phiếu đã gửi & đồng bộ lên máy chủ");
       } else {
         showToast("📥 Đã lưu vào IndexedDB — Chờ mạng để đồng bộ");
       }
@@ -108,15 +117,15 @@ export default function App() {
 
   return (
     <div
-      className="flex flex-col h-full w-full max-w-5xl mx-auto md:my-3 md:h-[calc(100vh-1.5rem)] md:rounded-3xl md:border overflow-hidden relative shadow-2xl transition-all"
+      className="flex flex-col h-full w-full max-w-6xl mx-auto md:my-3 md:h-[calc(100vh-1.5rem)] md:rounded-3xl md:border overflow-hidden relative shadow-2xl transition-all"
       style={{ background: "var(--bg)", borderColor: "var(--border)" }}
     >
       {/* Top Header Bar */}
       <header
-        className="flex items-center justify-between px-4 sm:px-6 py-3 shrink-0 border-b z-10"
+        className="flex items-center justify-between px-3 sm:px-6 py-3 shrink-0 border-b z-10"
         style={{ background: "var(--surface)", borderColor: "var(--border)" }}
       >
-        {/* Logo & App Title */}
+        {/* Logo & Title */}
         <div className="flex items-center gap-2.5">
           <div
             className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm"
@@ -125,24 +134,25 @@ export default function App() {
             <ClipboardList size={18} color="white" />
           </div>
           <div className="flex flex-col leading-tight">
-            <span className="text-sm md:text-base font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
+            <span className="text-sm sm:text-base font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
               VKU Field Survey
             </span>
-            <span className="text-[11px] md:text-xs font-mono" style={{ color: "var(--text-muted)" }}>
-              Kiểm định cơ sở vật chất (Offline-First)
+            <span className="text-[10px] sm:text-xs font-mono" style={{ color: "var(--text-muted)" }}>
+              Hệ thống Kiểm định Đa Nền tảng
             </span>
           </div>
         </div>
 
-        {/* Navigation Tabs Switcher: Khảo sát vs Quản lý */}
+        {/* Navigation Tabs Switcher (3 Chế độ) */}
         <div
-          className="flex items-center p-1 rounded-2xl border"
+          className="flex items-center p-1 rounded-2xl border text-xs font-semibold"
           style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}
         >
+          {/* Tab 1: Khảo sát hiện trường */}
           <button
             type="button"
             onClick={() => setActiveTab("survey")}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer"
             style={{
               background: activeTab === "survey" ? "var(--primary)" : "transparent",
               color: activeTab === "survey" ? "var(--primary-fg)" : "var(--text-secondary)",
@@ -153,32 +163,47 @@ export default function App() {
             <span className="hidden sm:inline">Khảo sát</span>
           </button>
 
+          {/* Tab 2: Quản lý Offline DB */}
           <button
             type="button"
-            onClick={() => setActiveTab("admin")}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer relative"
+            onClick={() => setActiveTab("local_admin")}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer"
             style={{
-              background: activeTab === "admin" ? "var(--primary)" : "transparent",
-              color: activeTab === "admin" ? "var(--primary-fg)" : "var(--text-secondary)",
-              boxShadow: activeTab === "admin" ? "0 2px 8px rgba(2,132,199,0.3)" : "none",
+              background: activeTab === "local_admin" ? "var(--primary)" : "transparent",
+              color: activeTab === "local_admin" ? "var(--primary-fg)" : "var(--text-secondary)",
+              boxShadow: activeTab === "local_admin" ? "0 2px 8px rgba(2,132,199,0.3)" : "none",
             }}
           >
-            <LayoutDashboard size={14} />
-            <span className="hidden sm:inline">Quản lý</span>
-            {records.length > 0 && (
+            <Layers size={14} />
+            <span className="hidden sm:inline">Hàng đợi Máy</span>
+            {pendingCount > 0 && (
               <span
                 className="w-4 h-4 rounded-full text-[10px] font-mono flex items-center justify-center text-white"
-                style={{ background: pendingCount > 0 ? "#f59e0b" : "var(--primary)" }}
+                style={{ background: "#f59e0b" }}
               >
-                {records.length}
+                {pendingCount}
               </span>
             )}
+          </button>
+
+          {/* Tab 3: Server Admin Portal */}
+          <button
+            type="button"
+            onClick={() => setActiveTab("server_admin")}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer"
+            style={{
+              background: activeTab === "server_admin" ? "var(--primary)" : "transparent",
+              color: activeTab === "server_admin" ? "var(--primary-fg)" : "var(--text-secondary)",
+              boxShadow: activeTab === "server_admin" ? "0 2px 8px rgba(2,132,199,0.3)" : "none",
+            }}
+          >
+            <Server size={14} />
+            <span className="hidden sm:inline">Máy chủ Server</span>
           </button>
         </div>
 
         {/* Network Badge & Dark/Light Toggle */}
         <div className="flex items-center gap-2">
-          {/* Huy hiệu trạng thái mạng */}
           <div
             className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-mono font-semibold transition-all select-none"
             style={{
@@ -187,10 +212,9 @@ export default function App() {
             }}
           >
             {isOnline ? <Wifi size={13} /> : <WifiOff size={13} />}
-            <span className="hidden sm:inline">{isOnline ? "Online" : "Offline"}</span>
+            <span className="hidden md:inline">{isOnline ? "Online" : "Offline"}</span>
           </div>
 
-          {/* Nút chuyển Dark/Light mode */}
           <button
             type="button"
             onClick={() => setDark((d) => !d)}
@@ -204,9 +228,9 @@ export default function App() {
       </header>
 
       {/* Main Content Area */}
-      {activeTab === "survey" ? (
-        <FormWizard onSubmit={handleSubmit} />
-      ) : (
+      {activeTab === "survey" && <FormWizard onSubmit={handleSubmit} />}
+
+      {activeTab === "local_admin" && (
         <AdminDashboard
           records={records}
           onRefresh={refreshRecordsFromDb}
@@ -216,7 +240,9 @@ export default function App() {
         />
       )}
 
-      {/* Thanh nổi dưới đáy khi có phiếu chờ đồng bộ (chỉ ở tab Survey) */}
+      {activeTab === "server_admin" && <ServerAdminPage />}
+
+      {/* Floating Sync Bar for Survey tab when records are pending */}
       {activeTab === "survey" && pendingCount > 0 && (
         <div
           className="absolute bottom-0 left-0 right-0 px-4 pb-5 pt-3 flex items-center justify-between z-20 pointer-events-none"
@@ -254,13 +280,13 @@ export default function App() {
               }}
             >
               <RefreshCw size={15} className={syncing ? "animate-spin" : ""} />
-              {syncing ? "Đang sync…" : "Sync Now"}
+              {syncing ? "Đang sync…" : "Sync Server"}
             </button>
           </div>
         </div>
       )}
 
-      {/* Toast thông báo */}
+      {/* Toast Notification */}
       {toast && (
         <div
           className="absolute top-16 left-4 right-4 z-50 max-w-md mx-auto rounded-xl px-4 py-3 text-sm font-medium text-white text-center shadow-lg transition-all"
@@ -279,7 +305,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Modal hàng đợi ngoại tuyến */}
+      {/* Modal Hàng đợi Offline */}
       {showQueue && (
         <OfflineQueueModal
           records={records}

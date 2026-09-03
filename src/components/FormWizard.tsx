@@ -33,7 +33,7 @@ export default function FormWizard({ onSubmit }: Props) {
     getDraft()
       .then((savedDraft) => {
         if (savedDraft && (savedDraft.building || savedDraft.room || savedDraft.category)) {
-          setData(savedDraft);
+          setData((prev) => ({ ...prev, ...savedDraft }));
           setAutoSaveStatus("Đã khôi phục bản nháp");
           setTimeout(() => setAutoSaveStatus(null), 2500);
         }
