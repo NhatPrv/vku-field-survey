@@ -3,7 +3,9 @@ import type { QueuedSurvey } from '../types';
 
 export const DEFAULT_SERVER_URL =
   typeof window !== 'undefined'
-    ? `${window.location.protocol}//${window.location.hostname}:5000`
+    ? (window.location.port === '5173' || window.location.port === '4173'
+        ? `${window.location.protocol}//${window.location.hostname}:5000`
+        : window.location.origin)
     : 'http://localhost:5000';
 
 export interface SyncProgressCallback {
