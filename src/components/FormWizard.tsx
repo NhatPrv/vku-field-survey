@@ -91,25 +91,28 @@ export default function FormWizard({ onSubmit }: Props) {
   }
 
   return (
-    <div className="flex flex-col flex-1 overflow-hidden">
+    <div
+      className="flex flex-col flex-1 w-full max-w-4xl mx-auto rounded-3xl border shadow-sm overflow-hidden my-auto transition-all"
+      style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+    >
       {/* Auto-save status indicator */}
       {autoSaveStatus && (
         <div
-          className="flex items-center justify-center gap-1.5 py-1 px-3 text-xs font-mono border-b transition-all"
+          className="flex items-center justify-center gap-1.5 py-1.5 px-4 text-xs font-mono border-b transition-all"
           style={{
             background: "var(--surface-2)",
             color: "var(--primary)",
             borderColor: "var(--border)",
           }}
         >
-          <Save size={12} />
+          <Save size={13} />
           <span>{autoSaveStatus}</span>
         </div>
       )}
 
       {/* Step progress bar */}
       <div
-        className="flex items-center justify-between px-5 pt-4 pb-3 gap-0"
+        className="flex items-center justify-between px-6 sm:px-10 pt-5 pb-4 gap-0"
         style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)" }}
       >
         {STEPS.map((s, i) => {

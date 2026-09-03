@@ -29,6 +29,20 @@ if (fs.existsSync(distPath)) {
   app.use(express.static(serverPublicPath));
 }
 
+// Route phục vụ tải trực tiếp file APK Android
+app.get('/download/vku-field-survey.apk', (req, res) => {
+  const localApkPath = path.join(__dirname, 'downloads/vku-field-survey.apk');
+  const androidBuildApkPath = path.join(__dirname, '../android/app/build/outputs/apk/debug/app-debug.apk');
+
+  if (fs.existsSync(localApkPath)) {
+    return res.download(localApkPath, 'vku-field-survey.apk');
+  }
+  if (fs.existsSync(androidBuildApkPath)) {
+    return res.download(androidBuildApkPath, 'vku-field-survey.apk');
+  }
+  return res.redirect('https://github.com/NhatPrv/vku-field-survey/releases');
+});
+
 // In-memory data store cho danh sách các phiếu khảo sát nhận được từ các thiết bị ngoại tuyến
 let surveysStore = [];
 
