@@ -113,9 +113,9 @@ app.delete('/api/admin/surveys/:id', (req, res) => {
   });
 });
 
-// Single Page Application (SPA) Fallback
-app.get('*', (req, res, next) => {
-  if (req.url.startsWith('/api') || req.url.startsWith('/server-gui')) {
+// Single Page Application (SPA) Fallback (Tương thích chuẩn Express 5)
+app.use((req, res, next) => {
+  if (req.method !== 'GET' || req.url.startsWith('/api') || req.url.startsWith('/server-gui')) {
     return next();
   }
   if (fs.existsSync(path.join(distPath, 'index.html'))) {
