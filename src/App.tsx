@@ -1,7 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Wifi, WifiOff, RefreshCw, Sun, Moon, ClipboardList } from "lucide-react";
+import {
+  Wifi,
+  WifiOff,
+  RefreshCw,
+  Sun,
+  Moon,
+  ClipboardList,
+  LayoutDashboard,
+} from "lucide-react";
 import FormWizard from "./components/FormWizard";
 import OfflineQueueModal from "./components/OfflineQueueModal";
+import AdminDashboard from "./components/AdminDashboard";
 import { useNetworkStatus } from "./hooks/useNetworkStatus";
 import { getAllSurveys, addToQueue } from "./services/db";
 import { processSyncQueue } from "./services/syncQueue";
@@ -9,13 +18,13 @@ import type { SurveyFormData, OfflineRecord } from "./types";
 
 export default function App() {
   const [dark, setDark] = useState(false);
+  const [activeTab, setActiveTab] = useState<"survey" | "admin">("survey");
   const { isOnline } = useNetworkStatus();
   const [records, setRecords] = useState<OfflineRecord[]>([]);
   const [showQueue, setShowQueue] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  // Biến lưu trạng thái mạng trước đó để nhận diện thời điểm vừa phục hồi mạng
   const prevOnlineRef = useRef(isOnline);
 
   // 1. Tải danh sách bản ghi khảo sát từ IndexedDB
@@ -63,10 +72,10 @@ export default function App() {
     }
   }, [isOnline, syncing, refreshRecordsFromDb]);
 
-  // 4. Tự động kích hoạt đồng bộ khi vừa khôi phục kết nối mạng (Auto Sync on Reconnect)
+  // 4. Tự động kích hoạt đồng bộ khi vừa khôi phục kết nối mạng
   useEffect(() => {
     if (!prevOnlineRef.current && isOnline) {
-      showToast("🌐 Đã kết nối mạng — Đang tự động đồng bộ...");
+      showToast("🌐 Đã có mạng trở lại — Tự động đồng bộ...");
       handleSync();
     }
     prevOnlineRef.current = isOnline;
@@ -99,42 +108,86 @@ export default function App() {
 
   return (
     <div
-      className="flex flex-col h-full max-w-md mx-auto overflow-hidden relative shadow-2xl"
-      style={{ background: "var(--bg)" }}
+      className="flex flex-col h-full w-full max-w-5xl mx-auto md:my-3 md:h-[calc(100vh-1.5rem)] md:rounded-3xl md:border overflow-hidden relative shadow-2xl transition-all"
+      style={{ background: "var(--bg)", borderColor: "var(--border)" }}
     >
       {/* Top Header Bar */}
       <header
-        className="flex items-center justify-between px-5 py-3 shrink-0 border-b z-10"
+        className="flex items-center justify-between px-4 sm:px-6 py-3 shrink-0 border-b z-10"
         style={{ background: "var(--surface)", borderColor: "var(--border)" }}
       >
+        {/* Logo & App Title */}
         <div className="flex items-center gap-2.5">
           <div
-            className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-sm"
+            className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm"
             style={{ background: "var(--primary)" }}
           >
-            <ClipboardList size={16} color="white" />
+            <ClipboardList size={18} color="white" />
           </div>
           <div className="flex flex-col leading-tight">
-            <span className="text-sm font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
+            <span className="text-sm md:text-base font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
               VKU Field Survey
             </span>
-            <span className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>
-              Khảo sát ngoại tuyến (PWA)
+            <span className="text-[11px] md:text-xs font-mono" style={{ color: "var(--text-muted)" }}>
+              Kiểm định cơ sở vật chất (Offline-First)
             </span>
           </div>
         </div>
 
+        {/* Navigation Tabs Switcher: Khảo sát vs Quản lý */}
+        <div
+          className="flex items-center p-1 rounded-2xl border"
+          style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}
+        >
+          <button
+            type="button"
+            onClick={() => setActiveTab("survey")}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+            style={{
+              background: activeTab === "survey" ? "var(--primary)" : "transparent",
+              color: activeTab === "survey" ? "var(--primary-fg)" : "var(--text-secondary)",
+              boxShadow: activeTab === "survey" ? "0 2px 8px rgba(2,132,199,0.3)" : "none",
+            }}
+          >
+            <ClipboardList size={14} />
+            <span className="hidden sm:inline">Khảo sát</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("admin")}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer relative"
+            style={{
+              background: activeTab === "admin" ? "var(--primary)" : "transparent",
+              color: activeTab === "admin" ? "var(--primary-fg)" : "var(--text-secondary)",
+              boxShadow: activeTab === "admin" ? "0 2px 8px rgba(2,132,199,0.3)" : "none",
+            }}
+          >
+            <LayoutDashboard size={14} />
+            <span className="hidden sm:inline">Quản lý</span>
+            {records.length > 0 && (
+              <span
+                className="w-4 h-4 rounded-full text-[10px] font-mono flex items-center justify-center text-white"
+                style={{ background: pendingCount > 0 ? "#f59e0b" : "var(--primary)" }}
+              >
+                {records.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Network Badge & Dark/Light Toggle */}
         <div className="flex items-center gap-2">
           {/* Huy hiệu trạng thái mạng */}
           <div
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-semibold transition-all select-none"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-mono font-semibold transition-all select-none"
             style={{
               background: isOnline ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
               color: isOnline ? "var(--success)" : "var(--danger)",
             }}
           >
             {isOnline ? <Wifi size={13} /> : <WifiOff size={13} />}
-            {isOnline ? "Online" : "Offline"}
+            <span className="hidden sm:inline">{isOnline ? "Online" : "Offline"}</span>
           </div>
 
           {/* Nút chuyển Dark/Light mode */}
@@ -150,19 +203,26 @@ export default function App() {
         </div>
       </header>
 
-      {/* Thân biểu mẫu đa bước */}
-      <FormWizard onSubmit={handleSubmit} />
+      {/* Main Content Area */}
+      {activeTab === "survey" ? (
+        <FormWizard onSubmit={handleSubmit} />
+      ) : (
+        <AdminDashboard
+          records={records}
+          onRefresh={refreshRecordsFromDb}
+          onSync={handleSync}
+          isOnline={isOnline}
+          syncing={syncing}
+        />
+      )}
 
-      {/* Thanh nổi dưới đáy khi có phiếu chờ đồng bộ */}
-      {pendingCount > 0 && (
+      {/* Thanh nổi dưới đáy khi có phiếu chờ đồng bộ (chỉ ở tab Survey) */}
+      {activeTab === "survey" && pendingCount > 0 && (
         <div
-          className="absolute bottom-0 left-0 right-0 px-4 pb-5 pt-3 flex items-center justify-between z-20"
-          style={{
-            background: "linear-gradient(to top, var(--bg) 75%, transparent)",
-            pointerEvents: "none",
-          }}
+          className="absolute bottom-0 left-0 right-0 px-4 pb-5 pt-3 flex items-center justify-between z-20 pointer-events-none"
+          style={{ background: "linear-gradient(to top, var(--bg) 75%, transparent)" }}
         >
-          <div style={{ pointerEvents: "auto" }} className="flex items-center gap-3 w-full">
+          <div style={{ pointerEvents: "auto" }} className="flex items-center gap-3 w-full max-w-md mx-auto">
             <button
               type="button"
               onClick={() => setShowQueue(true)}
@@ -203,7 +263,7 @@ export default function App() {
       {/* Toast thông báo */}
       {toast && (
         <div
-          className="absolute top-16 left-4 right-4 z-50 rounded-xl px-4 py-3 text-sm font-medium text-white text-center shadow-lg transition-all"
+          className="absolute top-16 left-4 right-4 z-50 max-w-md mx-auto rounded-xl px-4 py-3 text-sm font-medium text-white text-center shadow-lg transition-all"
           style={{
             background: toast.startsWith("✓")
               ? "var(--success)"

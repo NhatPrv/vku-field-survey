@@ -147,7 +147,7 @@ export default function FormWizard({ onSubmit }: Props) {
       </div>
 
       {/* Form body */}
-      <div className="flex-1 overflow-y-auto px-5 py-5">
+      <div className="flex-1 overflow-y-auto px-5 md:px-8 py-5 md:py-7">
         {step === 1 && <StepLocation data={data} onChange={patch} />}
         {step === 2 && <StepCategory data={data} onChange={patch} />}
         {step === 3 && (
@@ -163,7 +163,7 @@ export default function FormWizard({ onSubmit }: Props) {
       {/* Bottom nav for steps 1-2 */}
       {step < 3 && (
         <div
-          className="px-5 py-4 border-t flex gap-3"
+          className="px-5 md:px-8 py-4 md:py-5 border-t flex gap-4"
           style={{ background: "var(--surface)", borderColor: "var(--border)" }}
         >
           {step > 1 && (
