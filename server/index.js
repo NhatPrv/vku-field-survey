@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -14,8 +15,19 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Phục vụ giao diện Web GUI độc lập tại http://localhost:5000/
-app.use(express.static(path.join(__dirname, 'public')));
+// Đường dẫn thư mục
+const serverPublicPath = path.join(__dirname, 'public');
+const distPath = path.join(__dirname, '../dist');
+
+// Phục vụ giao diện Server Dashboard riêng tại route /server-gui
+app.use('/server-gui', express.static(serverPublicPath));
+
+// Phục vụ Frontend PWA từ thư mục dist (nếu đã build) hoặc fallback về Server GUI
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+} else {
+  app.use(express.static(serverPublicPath));
+}
 
 // In-memory data store cho danh sách các phiếu khảo sát nhận được từ các thiết bị ngoại tuyến
 let surveysStore = [];
@@ -53,11 +65,9 @@ app.post('/api/surveys', (req, res) => {
     const existingIndex = surveysStore.findIndex((item) => item.id === surveyData.id);
 
     if (existingIndex !== -1) {
-      // Cập nhật bản ghi đã tồn tại (Idempotent update)
       surveysStore[existingIndex] = processedRecord;
       console.log(`[Server] Đã cập nhật bản ghi có sẵn ID: ${surveyData.id}`);
     } else {
-      // Thêm bản ghi mới lên đầu danh sách
       surveysStore.unshift(processedRecord);
       console.log(`[Server] Đã tiếp nhận phiếu khảo sát mới ID: ${surveyData.id} [${surveyData.payload?.building} - ${surveyData.payload?.room}]`);
     }
@@ -103,11 +113,25 @@ app.delete('/api/admin/surveys/:id', (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
+// Single Page Application (SPA) Fallback
+app.get('*', (req, res, next) => {
+  if (req.url.startsWith('/api') || req.url.startsWith('/server-gui')) {
+    return next();
+  }
+  if (fs.existsSync(path.join(distPath, 'index.html'))) {
+    return res.sendFile(path.join(distPath, 'index.html'));
+  }
+  if (fs.existsSync(path.join(serverPublicPath, 'index.html'))) {
+    return res.sendFile(path.join(serverPublicPath, 'index.html'));
+  }
+  next();
+});
+
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`====================================================`);
   console.log(`🚀 VKU Field Survey Central Backend Server Running`);
-  console.log(`📡 URL: http://localhost:${PORT}`);
-  console.log(`📋 API Post Surveys: http://localhost:${PORT}/api/surveys`);
-  console.log(`📊 API Admin Data:   http://localhost:${PORT}/api/admin/surveys`);
+  console.log(`📡 URL: http://0.0.0.0:${PORT}`);
+  console.log(`📋 API Post Surveys: http://0.0.0.0:${PORT}/api/surveys`);
+  console.log(`📊 Server GUI:       http://0.0.0.0:${PORT}/server-gui`);
   console.log(`====================================================`);
 });

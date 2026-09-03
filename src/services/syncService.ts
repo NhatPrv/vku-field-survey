@@ -2,8 +2,8 @@ import { getPendingSurveys, updateSurveyStatus } from './db';
 import type { QueuedSurvey } from '../types';
 
 export const DEFAULT_SERVER_URL =
-  typeof window !== 'undefined' && window.location.hostname === 'localhost'
-    ? 'http://localhost:5000'
+  typeof window !== 'undefined'
+    ? `${window.location.protocol}//${window.location.hostname}:5000`
     : 'http://localhost:5000';
 
 export interface SyncProgressCallback {
