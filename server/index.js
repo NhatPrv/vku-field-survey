@@ -57,6 +57,34 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Server-Sent Events (SSE) clients cho Dashboard cập nhật tức thì
+let sseClients = [];
+
+function broadcastUpdate() {
+  sseClients.forEach((client) => {
+    try {
+      client.write('data: update\n\n');
+    } catch {
+      // client disconnected
+    }
+  });
+}
+
+/**
+ * SSE Endpoint phục vụ Server GUI lắng nghe sự kiện phiếu mới thời gian thực
+ */
+app.get('/api/admin/events', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  sseClients.push(res);
+  req.on('close', () => {
+    sseClients = sseClients.filter((c) => c !== res);
+  });
+});
+
 /**
  * Endpoint tiếp nhận phiếu khảo sát từ Client PWA / Android Native
  * Đảm bảo tính Idempotency: Nếu ID đã tồn tại thì cập nhật, nếu chưa thì thêm mới vào đầu danh sách
@@ -85,6 +113,9 @@ app.post('/api/surveys', (req, res) => {
       surveysStore.unshift(processedRecord);
       console.log(`[Server] Đã tiếp nhận phiếu khảo sát mới ID: ${surveyData.id} [${surveyData.payload?.building} - ${surveyData.payload?.room}]`);
     }
+
+    // Phát tín hiệu thời gian thực cho Server GUI cập nhật ngay tức thì
+    broadcastUpdate();
 
     return res.status(200).json({
       success: true,
@@ -121,6 +152,7 @@ app.delete('/api/admin/surveys/:id', (req, res) => {
   }
 
   console.log(`[Server] Đã xóa bản ghi ID: ${id}`);
+  broadcastUpdate();
   return res.status(200).json({
     success: true,
     message: `Đã xóa thành công bản ghi ID: ${id}`,

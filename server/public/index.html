@@ -73,12 +73,15 @@
       </div>
 
       <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
-        <span class="text-xs font-mono text-slate-400 uppercase tracking-wider">Chu kỳ đồng bộ ngầm</span>
+        <span class="text-xs font-mono text-slate-400 uppercase tracking-wider">Đồng bộ dữ liệu</span>
         <div class="mt-2 flex items-baseline justify-between">
-          <span class="text-3xl font-bold font-mono text-sky-400">10s</span>
-          <span class="text-xs font-mono text-slate-400">Polling</span>
+          <span class="text-2xl sm:text-3xl font-bold font-mono text-emerald-400 flex items-center gap-1.5">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+            Realtime
+          </span>
+          <span class="text-xs font-mono text-slate-400">SSE + 3s</span>
         </div>
-        <p class="text-[11px] font-mono text-slate-500 mt-1">Tự động cập nhật tức thì</p>
+        <p class="text-[11px] font-mono text-slate-500 mt-1">Tự động nạp ngay khi có phiếu</p>
       </div>
     </div>
 
@@ -280,7 +283,22 @@
     }
 
     fetchData();
-    setInterval(fetchData, 10000);
+
+    // Lắng nghe sự kiện thời gian thực từ máy chủ qua Server-Sent Events (SSE)
+    if (!!window.EventSource) {
+      try {
+        const sse = new EventSource('/api/admin/events');
+        sse.onmessage = function() {
+          console.log('[SSE] Nhận thông báo phiếu mới — Tự động cập nhật bảng tức thì');
+          fetchData();
+        };
+      } catch (e) {
+        console.warn('Lỗi kết nối SSE:', e);
+      }
+    }
+
+    // Chu kỳ cập nhật dự phòng mỗi 3 giây
+    setInterval(fetchData, 3000);
   </script>
 </body>
 </html>
