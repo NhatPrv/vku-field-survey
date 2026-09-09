@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { Capacitor } from "@capacitor/core";
 import {
   Wifi,
   WifiOff,
@@ -61,11 +62,11 @@ export default function App() {
   }, [dark]);
 
   // 3. Xử lý đồng bộ hàng đợi lên Server khi có mạng
-  const handleSync = useCallback(async () => {
+  const handleSync = useCallback(async (forceAll = false) => {
     if (!isOnline || syncing) return;
     setSyncing(true);
     try {
-      const result = await syncPendingSurveys();
+      const result = await syncPendingSurveys(undefined, undefined, forceAll);
       await refreshRecordsFromDb();
       if (result.successCount > 0) {
         showToast(`✓ Đã đồng bộ ${result.successCount} phiếu lên máy chủ trung tâm`);
@@ -73,6 +74,8 @@ export default function App() {
         showToast(`⚠️ Không thể kết nối Backend Server — Dữ liệu được bảo toàn trên máy`);
       } else if (result.failedCount > 0) {
         showToast(`⚠️ Có ${result.failedCount} phiếu đồng bộ thất bại`);
+      } else if (forceAll) {
+        showToast(`ℹ️ Toàn bộ phiếu trên máy đã được đồng bộ lên máy chủ`);
       }
     } catch (err) {
       console.error("Lỗi trong quá trình sync:", err);
@@ -94,15 +97,26 @@ export default function App() {
   // 5. Tiếp nhận submit từ FormWizard
   async function handleSubmit(data: SurveyFormData) {
     try {
-      const initialStatus = isOnline ? "SYNCED" : "PENDING_SYNC";
-      await enqueueSurvey(data, initialStatus);
+      // BƯỚC 1: Luôn luôn lưu vào IndexedDB với trạng thái PENDING_SYNC
+      await enqueueSurvey(data, "PENDING_SYNC");
       await refreshRecordsFromDb();
 
+      // BƯỚC 2: Nếu có kết nối mạng, đồng bộ ngay lập tức lên server
       if (isOnline) {
-        handleSync();
-        showToast("✓ Phiếu đã gửi & đồng bộ thành công");
+        setSyncing(true);
+        try {
+          const result = await syncPendingSurveys();
+          await refreshRecordsFromDb();
+          if (result.successCount > 0) {
+            showToast("✓ Phiếu đã gửi & đồng bộ thành công lên máy chủ");
+          } else if (result.stoppedEarly) {
+            showToast("⚠️ Không thể kết nối Server — Đã lưu an toàn trên máy");
+          }
+        } finally {
+          setSyncing(false);
+        }
       } else {
-        showToast("📥 Đã lưu vào IndexedDB — Chờ mạng để đồng bộ");
+        showToast("📥 Đã lưu vào IndexedDB (Ngoại tuyến) — Sẽ tự đồng bộ khi có mạng");
       }
     } catch (err) {
       console.error("Lỗi lưu phiếu khảo sát:", err);
@@ -119,51 +133,83 @@ export default function App() {
 
   return (
     <div
-      className="min-h-screen w-full flex flex-col transition-colors duration-200"
+      className="min-h-screen w-full max-w-full overflow-x-hidden flex flex-col transition-colors duration-200"
       style={{ background: "var(--bg)" }}
     >
-      {/* Top Header Bar - Full Width Responsive */}
+      {/* Top Header Bar - Full Width Responsive & Zero Overflow */}
       <header
-        className="w-full border-b sticky top-0 z-30 shadow-sm backdrop-blur-md"
+        className="w-full border-b sticky top-0 z-30 shadow-sm backdrop-blur-md overflow-x-hidden"
         style={{
           background: dark ? "rgba(15, 30, 45, 0.85)" : "rgba(255, 255, 255, 0.85)",
           borderColor: "var(--border)",
         }}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between gap-4">
-          {/* Logo & Brand Info */}
-          <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-md shadow-sky-600/20"
-              style={{ background: "var(--primary)" }}
-            >
-              <ClipboardList size={20} color="white" />
-            </div>
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2">
-                <span className="text-base sm:text-lg font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
-                  VKU Field Survey
-                </span>
-                <span className="hidden sm:inline-block px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-sky-500/10 text-sky-600 border border-sky-500/20">
-                  PWA & Native
+        <div className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 py-2.5 sm:py-3.5 flex flex-col md:flex-row md:items-center md:justify-between gap-2.5 sm:gap-4">
+          {/* Top Row on Mobile / Left Group on Desktop */}
+          <div className="flex items-center justify-between gap-3 w-full md:w-auto">
+            {/* Logo & Brand Info */}
+            <div className="flex items-center gap-2.5">
+              <div
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl flex items-center justify-center shrink-0 shadow-md shadow-sky-600/20"
+                style={{ background: "var(--primary)" }}
+              >
+                <ClipboardList size={18} color="white" />
+              </div>
+              <div className="flex flex-col">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-base sm:text-lg font-bold tracking-tight" style={{ color: "var(--text-primary)" }}>
+                    VKU Field Survey
+                  </span>
+                  <span className="hidden sm:inline-block px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-sky-500/10 text-sky-600 border border-sky-500/20">
+                    PWA & Native
+                  </span>
+                </div>
+                <span className="hidden sm:block text-xs font-mono" style={{ color: "var(--text-muted)" }}>
+                  Hệ thống Kiểm định Ngoại tuyến Đa Nền tảng
                 </span>
               </div>
-              <span className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>
-                Hệ thống Kiểm định Ngoại tuyến Đa Nền tảng
-              </span>
+            </div>
+
+            {/* Mobile-only Controls: Wifi Badge & Dark/Light Toggle */}
+            <div className="flex md:hidden items-center gap-2">
+              <div
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-mono font-semibold select-none border"
+                style={{
+                  background: isOnline ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
+                  color: isOnline ? "var(--success)" : "var(--danger)",
+                  borderColor: isOnline ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)",
+                }}
+              >
+                {isOnline ? <Wifi size={13} /> : <WifiOff size={13} />}
+                <span>{isOnline ? "Online" : "Offline"}</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setDark((d) => !d)}
+                className="w-8 h-8 rounded-xl flex items-center justify-center transition-all active:scale-95 cursor-pointer border"
+                style={{
+                  background: "var(--surface-2)",
+                  color: "var(--text-secondary)",
+                  borderColor: "var(--border)",
+                }}
+                aria-label="Đổi giao diện Sáng/Tối"
+              >
+                {dark ? <Sun size={15} /> : <Moon size={15} />}
+              </button>
             </div>
           </div>
 
-          {/* Navigation Tabs Switcher: Responsive Desktop/Tablet/Mobile */}
+          {/* Navigation Tabs Switcher: Full Width Grid on Mobile, Inline on Desktop */}
           <div
-            className="flex items-center p-1.5 rounded-2xl border text-xs font-semibold shadow-inner"
+            className="grid grid-cols-2 md:flex items-center p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border text-xs font-semibold shadow-inner w-full md:w-auto"
             style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}
           >
             {/* Tab 1: Khảo sát hiện trường */}
             <button
               type="button"
               onClick={() => setActiveTab("survey")}
-              className="flex items-center gap-2 px-3.5 sm:px-5 py-2 rounded-xl transition-all cursor-pointer font-medium"
+              className="flex items-center justify-center gap-2 px-3 sm:px-5 py-2 rounded-lg sm:rounded-xl transition-all cursor-pointer font-medium"
               style={{
                 background: activeTab === "survey" ? "var(--primary)" : "transparent",
                 color: activeTab === "survey" ? "var(--primary-fg)" : "var(--text-secondary)",
@@ -178,7 +224,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setActiveTab("local_queue")}
-              className="flex items-center gap-2 px-3.5 sm:px-5 py-2 rounded-xl transition-all cursor-pointer font-medium"
+              className="flex items-center justify-center gap-2 px-3 sm:px-5 py-2 rounded-lg sm:rounded-xl transition-all cursor-pointer font-medium"
               style={{
                 background: activeTab === "local_queue" ? "var(--primary)" : "transparent",
                 color: activeTab === "local_queue" ? "var(--primary-fg)" : "var(--text-secondary)",
@@ -198,8 +244,8 @@ export default function App() {
             </button>
           </div>
 
-          {/* Network Badge & Dark/Light Toggle */}
-          <div className="flex items-center gap-2.5">
+          {/* Desktop Right Controls (Hidden on Mobile) */}
+          <div className="hidden md:flex items-center gap-2.5">
             <div
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-semibold transition-all select-none border"
               style={{
@@ -209,7 +255,7 @@ export default function App() {
               }}
             >
               {isOnline ? <Wifi size={14} /> : <WifiOff size={14} />}
-              <span className="hidden md:inline">{isOnline ? "Online" : "Offline"}</span>
+              <span>{isOnline ? "Online" : "Offline"}</span>
             </div>
 
             <button
@@ -268,7 +314,7 @@ export default function App() {
 
             <button
               type="button"
-              onClick={handleSync}
+              onClick={() => handleSync()}
               disabled={!isOnline || syncing}
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white transition-all active:scale-95 disabled:opacity-50 shrink-0 cursor-pointer shadow-md"
               style={{ background: "var(--primary)" }}
@@ -280,21 +326,23 @@ export default function App() {
         </div>
       )}
 
-      {/* Nút Tải APK Android Cố định ở góc dưới phải (Sticky Download Button) */}
-      <div className="fixed bottom-5 right-5 z-40">
-        <button
-          type="button"
-          onClick={() => setShowApkModal(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-semibold text-xs text-white shadow-xl shadow-sky-600/30 hover:shadow-sky-600/50 transition-all active:scale-95 cursor-pointer border border-sky-400/30 group"
-          style={{ background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)" }}
-          title="Tải ứng dụng Android (APK)"
-        >
-          <Smartphone size={16} className="group-hover:rotate-12 transition-transform" />
-          <span className="hidden sm:inline">Cài đặt App Android</span>
-          <span className="sm:hidden">Tải APK</span>
-          <Download size={13} className="opacity-75" />
-        </button>
-      </div>
+      {/* Nút Tải APK Android Cố định ở góc dưới phải (Chỉ hiện khi chạy trên Web Browser/PWA) */}
+      {!Capacitor.isNativePlatform() && (
+        <div className="fixed bottom-5 right-5 z-40">
+          <button
+            type="button"
+            onClick={() => setShowApkModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl font-semibold text-xs text-white shadow-xl shadow-sky-600/30 hover:shadow-sky-600/50 transition-all active:scale-95 cursor-pointer border border-sky-400/30 group"
+            style={{ background: "linear-gradient(135deg, #0284c7 0%, #0369a1 100%)" }}
+            title="Tải ứng dụng Android (APK)"
+          >
+            <Smartphone size={16} className="group-hover:rotate-12 transition-transform" />
+            <span className="hidden sm:inline">Cài đặt App Android</span>
+            <span className="sm:hidden">Tải APK</span>
+            <Download size={13} className="opacity-75" />
+          </button>
+        </div>
+      )}
 
       {/* Modal Hướng dẫn & Tải file APK Android */}
       {showApkModal && (

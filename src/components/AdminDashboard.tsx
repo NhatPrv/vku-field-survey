@@ -19,7 +19,7 @@ import type { OfflineRecord, SyncStatus } from "../types";
 interface Props {
   records: OfflineRecord[];
   onRefresh: () => void;
-  onSync: () => void;
+  onSync: (forceAll?: boolean) => void;
   isOnline: boolean;
   syncing?: boolean;
 }
@@ -246,16 +246,17 @@ export default function AdminDashboard({ records, onRefresh, onSync, isOnline, s
 
           {/* Các nút hành động hàng loạt (Batch Actions) */}
           <div className="flex flex-wrap items-center gap-2 shrink-0">
-            {metrics.pending > 0 && (
+            {records.length > 0 && (
               <button
                 type="button"
-                onClick={onSync}
+                onClick={() => onSync(true)}
                 disabled={!isOnline || syncing}
-                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl text-white transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl text-white transition-all active:scale-95 disabled:opacity-50 cursor-pointer shadow-md"
                 style={{ background: "var(--primary)" }}
+                title="Đẩy toàn bộ phiếu khảo sát trên máy lên máy chủ trung tâm"
               >
                 <RefreshCw size={14} className={syncing ? "animate-spin" : ""} />
-                <span>Sync Tất Cả ({metrics.pending})</span>
+                <span>Đồng bộ lên Server ({metrics.pending > 0 ? `${metrics.pending} chờ` : `${records.length} phiếu`})</span>
               </button>
             )}
 

@@ -1,12 +1,15 @@
-import { getPendingSurveys, updateSurveyStatus } from './db';
+import { Capacitor } from '@capacitor/core';
+import { updateSurveyStatus } from './db';
 import type { QueuedSurvey } from '../types';
 
 export const DEFAULT_SERVER_URL =
-  typeof window !== 'undefined'
-    ? (window.location.port === '5173' || window.location.port === '4173'
-        ? `${window.location.protocol}//${window.location.hostname}:5000`
-        : window.location.origin)
-    : 'http://localhost:5000';
+  Capacitor.isNativePlatform()
+    ? 'http://13.250.26.54'
+    : (typeof window !== 'undefined'
+        ? (window.location.port === '5173' || window.location.port === '4173'
+            ? `${window.location.protocol}//${window.location.hostname}:5000`
+            : window.location.origin)
+        : 'http://localhost:5000');
 
 export interface SyncProgressCallback {
   (current: number, total: number, latestRecord?: QueuedSurvey): void;
@@ -20,14 +23,19 @@ export interface SyncResult {
 }
 
 /**
- * Gửi tuần tự các bản ghi PENDING_SYNC lên Backend Server
- * Xử lý lỗi an toàn: Nếu server không phản hồi thì dừng lại ngay để không làm hỏng dữ liệu
+ * Gửi tuần tự các bản ghi lên Backend Server
+ * Hỗ trợ forceAll để đẩy toàn bộ danh sách (kể cả bản ghi từng bị đánh dấu nhầm)
  */
 export async function syncPendingSurveys(
   serverUrl: string = DEFAULT_SERVER_URL,
-  onProgress?: SyncProgressCallback
+  onProgress?: SyncProgressCallback,
+  forceAll: boolean = false
 ): Promise<SyncResult> {
-  const pendingRecords = await getPendingSurveys();
+  const allRecords = await (await import('./db')).getAllQueuedSurveys();
+  const pendingRecords = forceAll
+    ? allRecords
+    : allRecords.filter((r) => r.status === 'PENDING_SYNC' || r.status === 'FAILED');
+
   const total = pendingRecords.length;
 
   let successCount = 0;

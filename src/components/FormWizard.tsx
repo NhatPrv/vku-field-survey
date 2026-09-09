@@ -9,7 +9,7 @@ import type { SurveyFormData } from "../types";
 const STEPS = [
   { num: 1, label: "Vị trí" },
   { num: 2, label: "Thiết bị" },
-  { num: 3, label: "Ảnh & Xét duyệt" },
+  { num: 3, label: "Ảnh & Duyệt" },
 ];
 
 const EMPTY: SurveyFormData = {
@@ -112,7 +112,7 @@ export default function FormWizard({ onSubmit }: Props) {
 
       {/* Step progress bar */}
       <div
-        className="flex items-center justify-between px-6 sm:px-10 pt-5 pb-4 gap-0"
+        className="flex items-center justify-between px-3 sm:px-8 pt-4 pb-3.5 gap-0"
         style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)" }}
       >
         {STEPS.map((s, i) => {
@@ -122,17 +122,17 @@ export default function FormWizard({ onSubmit }: Props) {
             <div key={s.num} className="flex items-center" style={{ flex: i < STEPS.length - 1 ? "1 1 0" : "none" }}>
               <div className="flex flex-col items-center gap-1">
                 <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold font-mono transition-all"
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-bold font-mono transition-all"
                   style={{
                     background: done ? "var(--primary)" : active ? "var(--primary)" : "var(--surface-2)",
                     color: done || active ? "var(--primary-fg)" : "var(--text-muted)",
                     boxShadow: active ? "0 0 0 3px rgba(2,132,199,0.2)" : "none",
                   }}
                 >
-                  {done ? <Check size={14} strokeWidth={2.5} /> : s.num}
+                  {done ? <Check size={13} strokeWidth={2.5} /> : s.num}
                 </div>
                 <span
-                  className="text-xs font-medium whitespace-nowrap"
+                  className="text-[11px] sm:text-xs font-medium whitespace-nowrap"
                   style={{ color: active ? "var(--primary)" : "var(--text-muted)" }}
                 >
                   {s.label}
