@@ -16,8 +16,9 @@
   * **Contribution:** 100% (Individual Project)
 * **🔗 Live Demo Client (Web App & PWA):** [http://13.250.26.54/](http://13.250.26.54/)
 * **🖥️ Central Server Admin Dashboard:** [http://13.250.26.54/server-gui](http://13.250.26.54/server-gui)
-* **💻 GitHub Repository:** [https://github.com/NhatPrv/vku-field-survey](https://github.com/NhatPrv/vku-field-survey)
-* **📱 Android APK Package ID:** `com.vku.fieldsurvey` (Tải trực tiếp tại: [http://13.250.26.54/download/vku-field-survey.apk](http://13.250.26.54/download/vku-field-survey.apk))
+* **📱 Android APK Package ID:** `com.vku.fieldsurvey`
+  * 🌐 Tải trực tiếp từ Máy chủ Cloud: [http://13.250.26.54/download/vku-field-survey.apk](http://13.250.26.54/download/vku-field-survey.apk)
+  * 📦 Tải bản phát hành chính thức GitHub Release (v1.0.0): [https://github.com/NhatPrv/vku-field-survey/releases/tag/v1.0.0](https://github.com/NhatPrv/vku-field-survey/releases/tag/v1.0.0)
 
 ---
 
