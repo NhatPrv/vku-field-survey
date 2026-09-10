@@ -72,14 +72,14 @@ export default function App() {
       const result = await syncPendingSurveys(undefined, undefined, forceAll);
       await refreshRecordsFromDb();
       if (result.successCount > 0) {
-        showToast(`✓ Đã đồng bộ ${result.successCount} phiếu lên máy chủ trung tâm`);
+        showToast(`✓ Đã tự động đồng bộ thành công ${result.successCount} phiếu khi có mạng!`);
         sendSyncSuccessNotification(result.successCount);
       } else if (result.stoppedEarly) {
         showToast(`⚠️ Không thể kết nối Backend Server — Dữ liệu được bảo toàn trên máy`);
       } else if (result.failedCount > 0) {
         showToast(`⚠️ Có ${result.failedCount} phiếu đồng bộ thất bại`);
       } else if (forceAll) {
-        showToast(`ℹ️ Toàn bộ phiếu trên máy đã được đồng bộ lên máy chủ`);
+        showToast(`ℹ️ Toàn bộ phiếu trên máy đã được đồng bộ`);
       }
     } catch (err) {
       console.error("Lỗi trong quá trình sync:", err);

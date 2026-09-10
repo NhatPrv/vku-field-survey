@@ -40,20 +40,35 @@ export default function ServerAdminPage({ onBackToClient }: Props) {
   const [filterSeverity, setFilterSeverity] = useState<string>("ALL");
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
-  // 1. Fetch dữ liệu từ API máy chủ trung tâm
+  // 1. Fetch dữ liệu từ API máy chủ trung tâm (kèm Fallback Standalone IndexedDB)
   const fetchSurveysFromServer = useCallback(async (isSilent = false) => {
     if (!isSilent) setRefreshing(true);
     try {
-      const res = await fetch(`${DEFAULT_SERVER_URL}/api/admin/surveys`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 2000);
+      const res = await fetch(`${DEFAULT_SERVER_URL}/api/admin/surveys`, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
       if (res.ok) {
         const json = await res.json();
         setSurveys(json.surveys || []);
         setServerOnline(true);
       } else {
         setServerOnline(false);
+        const { getAllQueuedSurveys } = await import("../services/db");
+        const localSurveys = await getAllQueuedSurveys();
+        setSurveys(localSurveys);
       }
     } catch {
+      // Khi server tắt/không kết nối được: Tự động tải từ IndexedDB trên thiết bị
       setServerOnline(false);
+      try {
+        const { getAllQueuedSurveys } = await import("../services/db");
+        const localSurveys = await getAllQueuedSurveys();
+        setSurveys(localSurveys);
+      } catch {
+        // Fallback im lặng
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -88,20 +103,26 @@ export default function ServerAdminPage({ onBackToClient }: Props) {
     };
   }, [fetchSurveysFromServer]);
 
-  // 3. Xóa một bản ghi khảo sát theo ID trên máy chủ
+  // 3. Xóa một bản ghi khảo sát theo ID
   async function handleDelete(id: string) {
-    if (!window.confirm(`Xác nhận xóa vĩnh viễn phiếu [${id}] khỏi máy chủ trung tâm?`)) return;
+    if (!window.confirm(`Xác nhận xóa vĩnh viễn phiếu [${id}]?`)) return;
     try {
-      const res = await fetch(`${DEFAULT_SERVER_URL}/api/admin/surveys/${id}`, {
-        method: "DELETE",
-      });
-      if (res.ok) {
-        setSurveys((prev) => prev.filter((s) => s.id !== id));
-      } else {
-        alert("Không thể xóa bản ghi trên máy chủ");
+      if (serverOnline) {
+        await fetch(`${DEFAULT_SERVER_URL}/api/admin/surveys/${id}`, {
+          method: "DELETE",
+        });
       }
-    } catch (err) {
-      alert("Lỗi kết nối máy chủ: " + err);
+      const { deleteSurvey } = await import("../services/db");
+      await deleteSurvey(id);
+      setSurveys((prev) => prev.filter((s) => s.id !== id));
+    } catch {
+      try {
+        const { deleteSurvey } = await import("../services/db");
+        await deleteSurvey(id);
+        setSurveys((prev) => prev.filter((s) => s.id !== id));
+      } catch (err) {
+        alert("Lỗi khi xóa bản ghi: " + err);
+      }
     }
   }
 
