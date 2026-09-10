@@ -10,10 +10,10 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware cấu hình CORS và giới hạn dung lượng tải ảnh Base64 lên đến 10MB
+// Middleware cấu hình CORS và giới hạn dung lượng tải ảnh Base64 lên đến 15MB
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
 // Đường dẫn thư mục
 const serverPublicPath = path.join(__dirname, 'public');

@@ -14,6 +14,9 @@ export interface SurveyFormData {
   rating: number; // 1 đến 5 sao
   notes: string;
   photoUrl: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  photoPath?: string | null;
 }
 
 export type SyncStatus = 'PENDING_SYNC' | 'SYNCED' | 'FAILED';

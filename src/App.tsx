@@ -12,16 +12,19 @@ import {
   Download,
   X,
   ExternalLink,
+  Building2,
 } from "lucide-react";
 import FormWizard from "./components/FormWizard";
 import OfflineQueueModal from "./components/OfflineQueueModal";
 import AdminDashboard from "./components/AdminDashboard";
+import ServerAdminPage from "./pages/ServerAdminPage";
 import { useNetworkStatus } from "./hooks/useNetworkStatus";
 import { getAllQueuedSurveys, enqueueSurvey } from "./services/db";
 import { syncPendingSurveys } from "./services/syncService";
+import { sendSyncSuccessNotification } from "./services/notifications";
 import type { SurveyFormData, OfflineRecord } from "./types";
 
-type ClientTab = "survey" | "local_queue";
+type ClientTab = "survey" | "local_queue" | "server_admin";
 
 export default function App() {
   const [dark, setDark] = useState<boolean>(false);
@@ -70,6 +73,7 @@ export default function App() {
       await refreshRecordsFromDb();
       if (result.successCount > 0) {
         showToast(`✓ Đã đồng bộ ${result.successCount} phiếu lên máy chủ trung tâm`);
+        sendSyncSuccessNotification(result.successCount);
       } else if (result.stoppedEarly) {
         showToast(`⚠️ Không thể kết nối Backend Server — Dữ liệu được bảo toàn trên máy`);
       } else if (result.failedCount > 0) {
@@ -260,6 +264,21 @@ export default function App() {
 
             <button
               type="button"
+              onClick={() => setActiveTab((t) => (t === "server_admin" ? "survey" : "server_admin"))}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all active:scale-95 cursor-pointer shadow-sm"
+              style={{
+                background: activeTab === "server_admin" ? "var(--primary)" : "var(--surface-2)",
+                color: activeTab === "server_admin" ? "#fff" : "var(--text-secondary)",
+                borderColor: activeTab === "server_admin" ? "var(--primary)" : "var(--border)",
+              }}
+              title="Cổng Quản trị Máy chủ Trung tâm"
+            >
+              <Building2 size={14} />
+              <span>Server Admin</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setDark((d) => !d)}
               className="w-9 h-9 rounded-xl flex items-center justify-center transition-all active:scale-95 cursor-pointer border"
               style={{
@@ -279,7 +298,7 @@ export default function App() {
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col">
         {activeTab === "survey" ? (
           <FormWizard onSubmit={handleSubmit} />
-        ) : (
+        ) : activeTab === "local_queue" ? (
           <AdminDashboard
             records={records}
             onRefresh={refreshRecordsFromDb}
@@ -287,6 +306,8 @@ export default function App() {
             isOnline={isOnline}
             syncing={syncing}
           />
+        ) : (
+          <ServerAdminPage onBackToClient={() => setActiveTab("survey")} />
         )}
       </main>
 

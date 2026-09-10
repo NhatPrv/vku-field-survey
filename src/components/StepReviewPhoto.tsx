@@ -1,6 +1,8 @@
-import { Camera, RotateCcw, MapPin, Tag, Star, FileText, Upload } from "lucide-react";
-import { useRef, useState } from "react";
+import { Camera, RotateCcw, MapPin, Tag, Star, FileText, Upload, Navigation } from "lucide-react";
+import { useRef, useState, useEffect } from "react";
 import { capturePhoto, readFileAsDataUrl } from "../services/camera";
+import { getCurrentCoordinates } from "../services/geolocation";
+import { savePhotoToFilesystem } from "../services/storage";
 import type { SurveyFormData } from "../types";
 
 const CATEGORY_EMOJI: Record<string, string> = {
@@ -19,13 +21,37 @@ interface Props {
 export default function StepReviewPhoto({ data, onChange, onBack, onSubmit }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [loadingCamera, setLoadingCamera] = useState(false);
+  const [loadingGps, setLoadingGps] = useState(false);
+
+  // Tự động định vị GPS khi vào bước xét duyệt nếu chưa có tọa độ
+  useEffect(() => {
+    if (!data.latitude || !data.longitude) {
+      handleGetGps();
+    }
+  }, []);
+
+  async function handleGetGps() {
+    setLoadingGps(true);
+    try {
+      const coords = await getCurrentCoordinates();
+      if (coords) {
+        onChange({
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+        });
+      }
+    } finally {
+      setLoadingGps(false);
+    }
+  }
 
   async function handleCapacitorCamera() {
     try {
       setLoadingCamera(true);
       const photoDataUrl = await capturePhoto();
       if (photoDataUrl) {
-        onChange({ photoUrl: photoDataUrl });
+        const photoPath = await savePhotoToFilesystem(photoDataUrl);
+        onChange({ photoUrl: photoDataUrl, photoPath });
       }
     } catch {
       fileRef.current?.click();
@@ -39,7 +65,8 @@ export default function StepReviewPhoto({ data, onChange, onBack, onSubmit }: Pr
     if (!file) return;
     try {
       const dataUrl = await readFileAsDataUrl(file);
-      onChange({ photoUrl: dataUrl });
+      const photoPath = await savePhotoToFilesystem(dataUrl);
+      onChange({ photoUrl: dataUrl, photoPath });
     } catch (err) {
       console.error("Lỗi đọc file:", err);
     }
@@ -152,6 +179,13 @@ export default function StepReviewPhoto({ data, onChange, onBack, onSubmit }: Pr
               icon: <Star size={15} />,
               label: "Đánh giá",
               value: data.rating ? `${"★".repeat(data.rating)}${"☆".repeat(5 - data.rating)} ${STARS[data.rating]}` : "—",
+            },
+            {
+              icon: <Navigation size={15} />,
+              label: "Tọa độ GPS (@capacitor/geolocation)",
+              value: data.latitude && data.longitude
+                ? `${data.latitude.toFixed(5)}°, ${data.longitude.toFixed(5)}°`
+                : (loadingGps ? "Đang dò tọa độ vệ tinh..." : "Chưa có tọa độ GPS"),
             },
             {
               icon: <FileText size={15} />,
